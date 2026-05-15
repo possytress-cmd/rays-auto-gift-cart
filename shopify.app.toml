@@ -1,0 +1,59 @@
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
+
+name = "rays-auto-gift-cart"
+handle = "rays-auto-gift-cart-theme"
+client_id = "db8b725ea35cfd0cdd9084c87377fcbf"
+application_url = "https://rays-auto-gift-cart.blovohair.workers.dev/"
+embedded = true
+
+[access_scopes]
+scopes = "read_metaobjects,write_metaobjects"
+optional_scopes = []
+use_legacy_install_flow = false
+
+[access.admin]
+embedded_app_direct_api_access = true
+direct_api_mode = "online"
+
+[auth]
+redirect_urls = [
+  "https://rays-auto-gift-cart.blovohair.workers.dev/auth/callback",
+]
+
+[webhooks]
+api_version = "2026-04"
+
+[build]
+automatically_update_urls_on_dev = true
+
+# App-owned metaobject: Admin UI (Direct API) + theme Liquid read storefront.
+[metaobjects.app.auto_gift_promotion]
+name = "Auto gift promotion"
+display_name_field = "title"
+access.storefront = "public_read"
+access.admin = "merchant_read_write"
+
+[metaobjects.app.auto_gift_promotion.fields.title]
+name = "Internal name"
+type = "single_line_text_field"
+required = true
+
+[metaobjects.app.auto_gift_promotion.fields.enabled]
+name = "Enabled"
+type = "boolean"
+required = true
+
+[metaobjects.app.auto_gift_promotion.fields.threshold_cents]
+name = "Cart subtotal threshold (minor units)"
+type = "number_integer"
+required = true
+
+[metaobjects.app.auto_gift_promotion.fields.variant_id]
+name = "Gift variant numeric ID"
+type = "single_line_text_field"
+required = true
+
+[metaobjects.app.auto_gift_promotion.fields.limit_one]
+name = "Limit one gift per order for this rule"
+type = "boolean"
+required = true

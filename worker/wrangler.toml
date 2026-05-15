@@ -1,0 +1,12 @@
+# Cloudflare Worker：OAuth + 托管嵌入式 App 静态页（Admin 内 Direct API 管理 Metaobject）
+name = "rays-auto-gift-cart"
+main = "src/index.js"
+compatibility_date = "2025-05-15"
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[vars]
+SHOPIFY_CLIENT_ID = "db8b725ea35cfd0cdd9084c87377fcbf"
+SHOPIFY_SCOPES = "read_metaobjects,write_metaobjects"

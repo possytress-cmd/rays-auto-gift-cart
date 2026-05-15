@@ -1,0 +1,7 @@
+api_version = "2025-04"
+uid = "030dc340-1e64-f2dc-bdcd-3fb64f6d667c82e05527"
+
+[[extensions]]
+name = "Auto gift promotions"
+handle = "auto-gift-promotions"
+type = "theme_app_extension"

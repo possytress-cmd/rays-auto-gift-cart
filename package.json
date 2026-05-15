@@ -1,0 +1,19 @@
+{
+  "name": "shopify-auto-gift-cart",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Theme app extension: auto-add free gift lines when cart subtotal meets thresholds (no app server).",
+  "scripts": {
+    "shopify": "shopify",
+    "cf:dev": "wrangler dev --config worker/wrangler.toml",
+    "cf:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "cf:secret": "wrangler secret put SHOPIFY_CLIENT_SECRET --config worker/wrangler.toml"
+  },
+  "devDependencies": {
+    "@shopify/cli": "^3.94.3",
+    "wrangler": "^4.14.1"
+  },
+  "engines": {
+    "node": ">=18.12.0"
+  }
+}

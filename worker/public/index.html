@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>满额赠品 · 促销管理</title>
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #f6f6f7;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 12px;
+      }
+      section {
+        background: #fff;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin: 8px 0 4px;
+      }
+      input[type='text'],
+      input[type='number'] {
+        width: 100%;
+        max-width: 420px;
+        padding: 8px;
+        border: 1px solid #c9cccf;
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #e1e3e5;
+        padding: 8px 6px;
+        text-align: left;
+      }
+      th {
+        background: #f1f2f3;
+      }
+      button {
+        cursor: pointer;
+        border-radius: 6px;
+        border: 1px solid #8c9196;
+        padding: 6px 12px;
+        background: #fff;
+      }
+      button.primary {
+        background: #008060;
+        border-color: #008060;
+        color: #fff;
+      }
+      button.danger {
+        color: #bf0711;
+        border-color: #bf0711;
+      }
+      .row {
+        margin-bottom: 8px;
+      }
+      .err {
+        color: #bf0711;
+        font-size: 0.85rem;
+        margin-top: 8px;
+      }
+      .hint {
+        font-size: 0.8rem;
+        color: #6d7175;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>满额赠品 · 促销（Metaobject）</h1>
+    <p class="hint">
+      数据写入应用 Metaobject <code>$app:auto_gift_promotion</code>；网店由主题 App
+      embed 读取并自动加购。需已在 <code>shopify.app.toml</code> 部署定义且应用具备 Direct
+      Admin API 权限。
+    </p>
+
+    <section>
+      <h2 style="margin-top:0;font-size:1rem;">现有规则</h2>
+      <div id="list-wrap">加载中…</div>
+      <div id="list-err" class="err"></div>
+    </section>
+
+    <section>
+      <h2 style="margin-top:0;font-size:1rem;">新建促销</h2>
+      <form id="create-form">
+        <div class="row">
+          <label for="f-title">内部名称</label>
+          <input id="f-title" name="title" type="text" required maxlength="80" />
+        </div>
+        <div class="row">
+          <label><input id="f-enabled" type="checkbox" checked /> 启用</label>
+        </div>
+        <div class="row">
+          <label for="f-th">购物车商品小计门槛（最小货币单位）</label>
+          <input id="f-th" name="threshold_cents" type="number" min="1" value="10000" required />
+          <p class="hint">与 <code>/cart.js</code> 一致，例如 USD $100 → 10000。</p>
+        </div>
+        <div class="row">
+          <label for="f-vid">赠品变体数字 ID</label>
+          <input id="f-vid" name="variant_id" type="text" required placeholder="43905279450422" />
+        </div>
+        <div class="row">
+          <label><input id="f-limit" type="checkbox" checked /> 本规则每笔订单仅 1 件赠品</label>
+        </div>
+        <button class="primary" type="submit">创建</button>
+      </form>
+      <div id="form-err" class="err"></div>
+    </section>
+
+    <script type="module">
+      const TYPE = '$app:auto_gift_promotion';
+
+      async function adminGql(query, variables) {
+        const res = await fetch('shopify:admin/api/graphql.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, variables: variables || {} }),
+        });
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error(text.slice(0, 200));
+        }
+      }
+
+      const LIST = `
+        query ListPromotions($type: String!, $first: Int!) {
+          metaobjects(type: $type, first: $first) {
+            nodes {
+              id
+              handle
+              title: field(key: "title") { value }
+              enabled: field(key: "enabled") { value }
+              threshold_cents: field(key: "threshold_cents") { value }
+              variant_id: field(key: "variant_id") { value }
+              limit_one: field(key: "limit_one") { value }
+            }
+          }
+        }
+      `;
+
+      const UPSERT = `
+        mutation Upsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code }
+          }
+        }
+      `;
+
+      const DELETE = `
+        mutation Del($id: ID!) {
+          metaobjectDelete(id: $id) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+      `;
+
+      function boolStr(v) {
+        return v ? 'true' : 'false';
+      }
+
+      async function loadList() {
+        const errEl = document.getElementById('list-err');
+        const wrap = document.getElementById('list-wrap');
+        errEl.textContent = '';
+        try {
+          const json = await adminGql(LIST, { type: TYPE, first: 50 });
+          if (json.errors?.length) {
+            errEl.textContent = json.errors.map((e) => e.message).join('; ');
+            wrap.textContent = '';
+            return;
+          }
+          const nodes = json.data?.metaobjects?.nodes || [];
+          if (!nodes.length) {
+            wrap.innerHTML = '<p class="hint">暂无规则，请在下方创建。</p>';
+            return;
+          }
+          const rows = nodes
+            .map((n) => {
+              const en = n.enabled?.value === 'true';
+              return `<tr>
+              <td>${escapeHtml(n.title?.value || '')}</td>
+              <td>${en ? '是' : '否'}</td>
+              <td>${escapeHtml(n.threshold_cents?.value || '')}</td>
+              <td>${escapeHtml(n.variant_id?.value || '')}</td>
+              <td>${n.limit_one?.value === 'true' ? '是' : '否'}</td>
+              <td><code>${escapeHtml(n.handle || '')}</code></td>
+              <td><button type="button" class="danger" data-del="${n.id}">删除</button></td>
+            </tr>`;
+            })
+            .join('');
+          wrap.innerHTML = `<table><thead><tr>
+            <th>名称</th><th>启用</th><th>门槛</th><th>变体 ID</th><th>仅 1 件</th><th>Handle</th><th></th>
+          </tr></thead><tbody>${rows}</tbody></table>`;
+        } catch (e) {
+          errEl.textContent = String(e.message || e);
+          wrap.textContent = '';
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      document.getElementById('create-form').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const errEl = document.getElementById('form-err');
+        errEl.textContent = '';
+        const title = document.getElementById('f-title').value.trim();
+        const enabled = document.getElementById('f-enabled').checked;
+        const threshold = String(
+          parseInt(document.getElementById('f-th').value, 10) || 0,
+        );
+        const variantId = document.getElementById('f-vid').value.trim();
+        const limitOne = document.getElementById('f-limit').checked;
+        const handle = `promo-${Date.now()}`;
+        const variables = {
+          handle: { type: TYPE, handle },
+          metaobject: {
+            fields: [
+              { key: 'title', value: title },
+              { key: 'enabled', value: boolStr(enabled) },
+              { key: 'threshold_cents', value: threshold },
+              { key: 'variant_id', value: variantId },
+              { key: 'limit_one', value: boolStr(limitOne) },
+            ],
+          },
+        };
+        try {
+          const json = await adminGql(UPSERT, variables);
+          if (json.errors?.length) {
+            errEl.textContent = json.errors.map((e) => e.message).join('; ');
+            return;
+          }
+          const ue = json.data?.metaobjectUpsert?.userErrors || [];
+          if (ue.length) {
+            errEl.textContent = ue.map((e) => e.message).join('; ');
+            return;
+          }
+          ev.target.reset();
+          document.getElementById('f-enabled').checked = true;
+          document.getElementById('f-th').value = '10000';
+          document.getElementById('f-limit').checked = true;
+          await loadList();
+        } catch (e) {
+          errEl.textContent = String(e.message || e);
+        }
+      });
+
+      document.getElementById('list-wrap').addEventListener('click', async (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        const id = t.getAttribute('data-del');
+        if (!id || t.tagName !== 'BUTTON') return;
+        if (!confirm('确定删除该促销？')) return;
+        const errEl = document.getElementById('list-err');
+        errEl.textContent = '';
+        const d = await adminGql(DELETE, { id });
+        if (d.errors?.length) {
+          errEl.textContent = d.errors.map((x) => x.message).join('; ');
+          return;
+        }
+        const ue = d.data?.metaobjectDelete?.userErrors || [];
+        if (ue.length) {
+          errEl.textContent = ue.map((x) => x.message).join('; ');
+          return;
+        }
+        await loadList();
+      });
+
+      await loadList();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,2 @@
+# 复制为 worker/.dev.vars 后本地 `npm run cf:dev` 使用（勿提交 .dev.vars）
+SHOPIFY_CLIENT_SECRET=shpss_xxxxxxxx

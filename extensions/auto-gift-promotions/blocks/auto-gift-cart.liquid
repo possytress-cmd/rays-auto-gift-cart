@@ -1,0 +1,40 @@
+{% comment %}
+  App embed: outputs cart rules JSON from app metaobjects + loads storefront script.
+  Manage entries in Shopify Admin → Apps → rays-auto-gift-cart (App Home).
+{% endcomment %}
+<script type="application/json" id="auto-gift-cart-config">
+{% if metaobjects.auto_gift_promotion %}
+[
+{%- assign gift_comma = false -%}
+{%- for promo in metaobjects.auto_gift_promotion.values -%}
+  {%- assign ev = promo.enabled.value -%}
+  {%- assign vid = promo.variant_id.value | strip -%}
+  {%- assign th = promo.threshold_cents.value | plus: 0 -%}
+  {%- if ev == true or ev == 'true' -%}
+    {%- if vid != blank and th > 0 -%}
+      {%- if gift_comma -%},{%- endif -%}
+      {%- assign gift_comma = true -%}
+      {%- assign lo = promo.limit_one.value -%}
+      {"enabled":true,"promotionId":{{ promo.handle | json }},"thresholdCents":{{ th }},"variantId":{{ vid | json }},"limitOne":{% if lo == true or lo == 'true' %}true{% else %}false{% endif %}}
+    {%- endif -%}
+  {%- endif -%}
+{%- endfor -%}
+]
+{% else %}
+[]
+{% endif %}
+</script>
+
+{% schema %}
+{
+  "name": "自动满额赠品",
+  "target": "body",
+  "javascript": "auto-gift-cart.js",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "规则来自应用 Metaobject（店面可读）。请在「应用 → rays-auto-gift-cart」中管理促销；并确保本嵌入已开启。"
+    }
+  ]
+}
+{% endschema %}
