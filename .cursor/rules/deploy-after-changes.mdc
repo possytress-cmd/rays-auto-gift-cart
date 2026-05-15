@@ -1,0 +1,47 @@
+---
+description: 本仓库每次可发布变更后须完成 GitHub + Cloudflare Wrangler + Shopify CLI 部署，便于立刻在 Admin / 店面联调
+alwaysApply: true
+---
+
+# 发布后三步（rays-auto-gift-cart）
+
+在**本仓库**完成一批与功能相关的修改（主题扩展、`shopify.app.toml`、`worker/`、`package.json` 等）并自检通过后，**在同一会话末尾**执行下面流程，除非用户明确说「不要部署 / 不要提交」。
+
+## 1. Shopify（主题扩展 + app 配置含 Metaobject）
+
+在仓库根目录执行（需已登录 Shopify CLI、指向本应用）：
+
+```powershell
+Set-Location e:\shopify-auto-gift-cart
+npx shopify app deploy --allow-updates
+```
+
+若 CLI 提示需允许删除扩展或配置，按提示追加 `--allow-deletes`（仅在确有需要时使用）。
+
+## 2. Cloudflare（Worker + `public/` 静态资源）
+
+```powershell
+Set-Location e:\shopify-auto-gift-cart
+npx wrangler deploy --config worker/wrangler.toml
+```
+
+确保 `SHOPIFY_CLIENT_SECRET` 等已通过 `wrangler secret` 配置；勿把 secret 写入 Git。
+
+## 3. GitHub（提交并推送）
+
+- 若工作区有未提交变更：先 `git status` / `git diff`，再 **`git add -A`** 与 **`git commit`**（一条清晰说明「为何」的 message）。  
+- **禁止**执行 `git config`（全局或本地均勿改）；若无作者信息，可用一次性环境变量：  
+  `$env:GIT_AUTHOR_NAME`、`$env:GIT_AUTHOR_EMAIL`、`$env:GIT_COMMITTER_NAME`、`$env:GIT_COMMITTER_EMAIL`。  
+- 然后 **`git push`**（`origin` 已存在时）；若尚未配置远程，先 `git remote add origin <url>` 再推送。
+
+## 顺序建议
+
+先 **Shopify deploy**（扩展与 `shopify.app.toml`），再 **Wrangler deploy**（App Home 与 OAuth 页），最后 **git commit + push**（与已部署内容一致的源码快照）。若任一步失败，在回复中说明错误与已执行到的步骤，**不要**在未修复前推送误导性提交。
+
+## 联调前提（可写进回复提醒）
+
+- 商店需已接受最新 **scope / embedded / metaobject** 等应用配置。  
+- 主题中已启用 **App embed「自动满额赠品」**；Admin 内打开应用管理 Metaobject。  
+- Worker 的 `application_url` 与 Dev Dashboard 一致。
+
+将本文件放在**以 `shopify-auto-gift-cart` 为根的工作区**时规则才会稳定生效；若工作区为更大磁盘根目录，请用子文件夹单独打开项目。
